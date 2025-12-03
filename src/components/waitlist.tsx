@@ -4,7 +4,7 @@ import { Check, Loader2 } from 'lucide-react';
 // to satisfy Next.js requirement that global CSS only be imported there.
 
 // CONFIGURATION: Add your Google Apps Script URL here
-const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwat71iCWVDpH7Kg04yGuzu-oCdISCCpIpvy9_HpUw1OkBo-Jelk3YjhnLMYHTxs6mQ/exec'; //YOUR_GOOGLE_SCRIPT_URL_HERE
+const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwhT2BT0AXYvQrsxfyU2RHRFKrOMSzjp4WajtLnUEeLz__Pv0Y8Ktk0nN_zR2KcEQ7S/exec'; //YOUR_GOOGLE_SCRIPT_URL_HERE
 
 interface FormData {
   name: string;
@@ -58,7 +58,7 @@ export default function WaitlistForm() {
       localStorage.setItem('waitlist:entries', JSON.stringify(existingEntries));
 
       // Send to Google Sheets if URL is configured
-      if (GOOGLE_SCRIPT_URL && GOOGLE_SCRIPT_URL !== 'https://script.google.com/macros/s/AKfycbwat71iCWVDpH7Kg04yGuzu-oCdISCCpIpvy9_HpUw1OkBo-Jelk3YjhnLMYHTxs6mQ/exec') {
+      if (GOOGLE_SCRIPT_URL && GOOGLE_SCRIPT_URL !== 'https://script.google.com/macros/s/AKfycbwhT2BT0AXYvQrsxfyU2RHRFKrOMSzjp4WajtLnUEeLz__Pv0Y8Ktk0nN_zR2KcEQ7S/exec') {
         try {
           await fetch(GOOGLE_SCRIPT_URL, {
             method: 'POST',
@@ -91,7 +91,7 @@ export default function WaitlistForm() {
       ...formData,
       [e.target.name]: e.target.value
     });
-  };
+  };  
 
   const handleKeyPress = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
