@@ -1,14 +1,5 @@
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import './index.css';
-import WaitlistForm from './components/waitlist';
+// This file was the CRA entry point and has been intentionally
+// neutralized after migrating the app to Next.js. The Next.js
+// entry points are in `pages/_app.tsx` and `pages/index.tsx`.
 
-const root = ReactDOM.createRoot(
-  document.getElementById('root') as HTMLElement
-);
-
-root.render(
-  <React.StrictMode>
-    <WaitlistForm />
-  </React.StrictMode>
-);
+export default null;

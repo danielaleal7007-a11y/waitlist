@@ -1,6 +1,7 @@
 import { useState, useEffect, ChangeEvent, KeyboardEvent } from 'react';
 import { Check, Loader2 } from 'lucide-react';
-import './waitlist.css';
+// Note: global stylesheet for this component is imported in `pages/_app.tsx`
+// to satisfy Next.js requirement that global CSS only be imported there.
 
 // CONFIGURATION: Add your Google Apps Script URL here
 const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwat71iCWVDpH7Kg04yGuzu-oCdISCCpIpvy9_HpUw1OkBo-Jelk3YjhnLMYHTxs6mQ/exec'; //YOUR_GOOGLE_SCRIPT_URL_HERE

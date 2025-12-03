@@ -1,0 +1,1 @@
+self.__REACT_LOADABLE_MANIFEST="{\"pages\\\\index.tsx -> ../src/components/waitlist\":{\"id\":\"pages\\\\index.tsx -> ../src/components/waitlist\",\"files\":[\"static/chunks/src_components_waitlist_tsx.js\"]}}"

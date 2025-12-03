@@ -1,3 +1,2 @@
 # https://www.robotstxt.org/robotstxt.html
-User-agent: *
-Disallow:
+# Neutralized CRA robots.txt; no special rules
