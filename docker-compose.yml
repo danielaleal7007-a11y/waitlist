@@ -1,0 +1,81 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: smm-panel-db
+    environment:
+      POSTGRES_DB: smm_panel
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for background jobs
+  redis:
+    image: redis:7-alpine
+    container_name: smm-panel-redis
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Next.js Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: smm-panel-app
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/smm_panel
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: development-secret-change-in-production
+    ports:
+      - '3000:3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./.env:/app/.env
+    restart: unless-stopped
+
+  # Background Worker (for jobs)
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: smm-panel-worker
+    command: ['npm', 'run', 'worker']
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/smm_panel
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./.env:/app/.env
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:

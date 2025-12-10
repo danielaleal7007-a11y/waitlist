@@ -1,0 +1,538 @@
+// This is your Prisma schema file
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+  RESELLER
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  PARTIAL
+  COMPLETED
+  CANCELED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentProvider {
+  KORAPAY
+  CRYPTOMUS
+  WALLET
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAUSED
+  CANCELED
+  EXPIRED
+}
+
+enum RefillStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum ImportSource {
+  CSV
+  REMOTE_API
+  EXTERNAL_DB
+  JSON_UPLOAD
+  SQL_DUMP
+}
+
+enum ImportStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  ROLLED_BACK
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  ORDER_PAYMENT
+  REFUND
+  COMMISSION
+  BONUS
+}
+
+model User {
+  id                String       @id @default(cuid())
+  displayName       String
+  username          String       @unique
+  email             String       @unique
+  emailVerified     DateTime?
+  passwordHash      String?
+  role              UserRole     @default(USER)
+  currency          String       @default("USD")
+  walletBalance     Float        @default(0)
+  twoFactorEnabled  Boolean      @default(false)
+  twoFactorSecret   String?
+  isLocked          Boolean      @default(false)
+  failedLoginAttempts Int        @default(0)
+  lastFailedLogin   DateTime?
+  googleId          String?      @unique
+  avatar            String?
+  preferredLanguage String       @default("en")
+  marketingOptIn    Boolean      @default(false)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  orders            Order[]
+  payments          Payment[]
+  tickets           Ticket[]
+  subscriptions     Subscription[]
+  walletTransactions WalletTransaction[]
+  apiKeys           ApiKey[]
+  favorites         Favorite[]
+  couponsUsed       CouponUsage[]
+  referralsMade     Referral[]     @relation("ReferredBy")
+  referralsReceived Referral[]     @relation("Referrer")
+  auditLogs         AuditLog[]
+  notifications     Notification[]
+
+  @@index([email])
+  @@index([username])
+  @@index([role])
+}
+
+model Service {
+  id              String    @id @default(cuid())
+  providerId      String
+  name            String
+  category        String
+  description     String    @db.Text
+  priceBase       Float
+  displayPrice    Float
+  minQuantity     Int
+  maxQuantity     Int
+  speed           String?   // e.g., "1-2 hours", "Instant"
+  tags            String[]  @default([])
+  active          Boolean   @default(true)
+  featured        Boolean   @default(false)
+  averageTime     String?
+  exampleResults  String?   @db.Text
+  inputFields     Json?     // Dynamic fields required for the service
+  subscriptionCapable Boolean @default(false)
+  refillEnabled   Boolean   @default(false)
+  refillLimit     Int       @default(0)
+  margin          Float     @default(0) // Profit margin percentage
+  rating          Float     @default(0)
+  orderCount      Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  provider        Provider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  orders          Order[]
+  subscriptions   Subscription[]
+  favorites       Favorite[]
+
+  @@index([category])
+  @@index([providerId])
+  @@index([active])
+  @@index([featured])
+}
+
+model Provider {
+  id              String    @id @default(cuid())
+  name            String
+  type            String    // REST_JSON, REST_XML, SOAP
+  baseUrl         String
+  apiKey          String    @db.Text
+  active          Boolean   @default(true)
+  meta            Json?     // Additional config like headers, mapping templates
+  rateMultiplier  Float     @default(1.0)
+  timeout         Int       @default(30000)
+  maxConcurrency  Int       @default(10)
+  balance         Float?
+  lastSyncAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  services        Service[]
+  orders          Order[]
+
+  @@index([active])
+}
+
+model Order {
+  id                String      @id @default(cuid())
+  userId            String
+  serviceId         String
+  providerId        String
+  quantity          Int
+  link              String?     // URL or username
+  customData        Json?       // Additional input fields
+  totalPrice        Float
+  currency          String      @default("USD")
+  status            OrderStatus @default(PENDING)
+  providerOrderId   String?
+  startCount        Int?
+  remains           Int?
+  notes             String?     @db.Text
+  refillEnabled     Boolean     @default(false)
+  autoRetry         Boolean     @default(true)
+  retryAttempts     Int         @default(0)
+  maxRetries        Int         @default(3)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  completedAt       DateTime?
+
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  service           Service     @relation(fields: [serviceId], references: [id])
+  provider          Provider    @relation(fields: [providerId], references: [id])
+  payment           Payment?
+  refills           Refill[]
+  statusHistory     OrderStatusHistory[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model OrderStatusHistory {
+  id          String      @id @default(cuid())
+  orderId     String
+  status      OrderStatus
+  notes       String?     @db.Text
+  createdAt   DateTime    @default(now())
+
+  order       Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+}
+
+model Payment {
+  id                  String          @id @default(cuid())
+  orderId             String?         @unique
+  userId              String
+  amount              Float
+  currency            String          @default("USD")
+  provider            PaymentProvider
+  providerPaymentId   String?         @unique
+  status              PaymentStatus   @default(PENDING)
+  rawPayload          Json?
+  webhookVerified     Boolean         @default(false)
+  webhookEventId      String?         @unique
+  metadata            Json?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  completedAt         DateTime?
+
+  order               Order?          @relation(fields: [orderId], references: [id])
+  user                User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([provider])
+  @@index([createdAt])
+}
+
+model WalletTransaction {
+  id              String          @id @default(cuid())
+  userId          String
+  type            TransactionType
+  amount          Float
+  currency        String          @default("USD")
+  balanceBefore   Float
+  balanceAfter    Float
+  description     String?
+  reference       String?         // Order ID, Payment ID, etc.
+  metadata        Json?
+  createdAt       DateTime        @default(now())
+
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model Ticket {
+  id          String         @id @default(cuid())
+  userId      String
+  subject     String
+  status      TicketStatus   @default(OPEN)
+  priority    TicketPriority @default(MEDIUM)
+  category    String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  closedAt    DateTime?
+
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages    TicketMessage[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([priority])
+}
+
+model TicketMessage {
+  id          String    @id @default(cuid())
+  ticketId    String
+  userId      String?   // Null if admin reply
+  isAdmin     Boolean   @default(false)
+  message     String    @db.Text
+  attachments String[]  @default([])
+  createdAt   DateTime  @default(now())
+
+  ticket      Ticket    @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+}
+
+model Subscription {
+  id          String             @id @default(cuid())
+  userId      String
+  serviceId   String
+  quantity    Int
+  link        String?
+  cronSpec    String             // e.g., "0 0 * * *" for daily
+  status      SubscriptionStatus @default(ACTIVE)
+  nextRunAt   DateTime
+  lastRunAt   DateTime?
+  failCount   Int                @default(0)
+  maxFails    Int                @default(3)
+  metadata    Json?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  pausedAt    DateTime?
+  canceledAt  DateTime?
+
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  service     Service            @relation(fields: [serviceId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@index([nextRunAt])
+}
+
+model Refill {
+  id          String       @id @default(cuid())
+  orderId     String
+  status      RefillStatus @default(PENDING)
+  quantity    Int
+  notes       String?      @db.Text
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  completedAt DateTime?
+
+  order       Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([status])
+}
+
+model Coupon {
+  id            String    @id @default(cuid())
+  code          String    @unique
+  type          String    // PERCENTAGE, FIXED
+  value         Float
+  minAmount     Float?
+  maxDiscount   Float?
+  usageLimit    Int?
+  usageCount    Int       @default(0)
+  validFrom     DateTime?
+  validUntil    DateTime?
+  active        Boolean   @default(true)
+  description   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  usages        CouponUsage[]
+
+  @@index([code])
+  @@index([active])
+}
+
+model CouponUsage {
+  id          String    @id @default(cuid())
+  couponId    String
+  userId      String
+  orderId     String?
+  discount    Float
+  createdAt   DateTime  @default(now())
+
+  coupon      Coupon    @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([couponId])
+  @@index([userId])
+}
+
+model Referral {
+  id            String    @id @default(cuid())
+  referrerId    String
+  referredId    String
+  commission    Float     @default(0)
+  status        String    @default("PENDING") // PENDING, PAID
+  createdAt     DateTime  @default(now())
+
+  referrer      User      @relation("Referrer", fields: [referrerId], references: [id])
+  referred      User      @relation("ReferredBy", fields: [referredId], references: [id])
+
+  @@index([referrerId])
+  @@index([referredId])
+}
+
+model ApiKey {
+  id          String    @id @default(cuid())
+  userId      String
+  name        String
+  key         String    @unique
+  permissions String[]  @default([])
+  rateLimit   Int       @default(100)
+  active      Boolean   @default(true)
+  lastUsedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime?
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([key])
+}
+
+model ImportLog {
+  id              String       @id @default(cuid())
+  adminId         String
+  source          ImportSource
+  sourceDetails   Json?        // URL, filename, DB credentials (encrypted), etc.
+  mapping         Json?        // Field mapping configuration
+  status          ImportStatus @default(PENDING)
+  rowsImported    Int          @default(0)
+  rowsFailed      Int          @default(0)
+  errors          Json?        // Array of error objects
+  canRollback     Boolean      @default(true)
+  rolledBackAt    DateTime?
+  startedAt       DateTime     @default(now())
+  completedAt     DateTime?
+
+  @@index([adminId])
+  @@index([status])
+  @@index([startedAt])
+}
+
+model WebhookLog {
+  id          String    @id @default(cuid())
+  provider    String
+  eventId     String?   @unique
+  event       String
+  payload     Json
+  verified    Boolean   @default(false)
+  processed   Boolean   @default(false)
+  response    Json?
+  createdAt   DateTime  @default(now())
+
+  @@index([provider])
+  @@index([eventId])
+  @@index([createdAt])
+}
+
+model AuditLog {
+  id          String    @id @default(cuid())
+  userId      String?
+  action      String
+  resource    String    // e.g., "User", "Order", "Service"
+  resourceId  String?
+  changes     Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime  @default(now())
+
+  user        User?     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([resource])
+  @@index([createdAt])
+}
+
+model Favorite {
+  id          String    @id @default(cuid())
+  userId      String
+  serviceId   String
+  createdAt   DateTime  @default(now())
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  service     Service   @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, serviceId])
+  @@index([userId])
+}
+
+model Notification {
+  id          String    @id @default(cuid())
+  userId      String
+  title       String
+  message     String    @db.Text
+  type        String    // ORDER_UPDATE, PAYMENT, TICKET, SYSTEM
+  read        Boolean   @default(false)
+  metadata    Json?
+  createdAt   DateTime  @default(now())
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([read])
+  @@index([createdAt])
+}
+
+model SystemSetting {
+  id          String    @id @default(cuid())
+  key         String    @unique
+  value       String    @db.Text
+  type        String    @default("string") // string, number, boolean, json
+  category    String    @default("general")
+  description String?
+  updatedAt   DateTime  @updatedAt
+
+  @@index([category])
+}
+
+model CurrencyRate {
+  id          String    @id @default(cuid())
+  baseCurrency String   @default("USD")
+  currency    String
+  rate        Float
+  markup      Float     @default(0)
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([baseCurrency, currency])
+  @@index([currency])
+}
