@@ -22,7 +22,7 @@ function getTransporter() {
     })
   } else if (emailProvider === 'sendgrid') {
     // SendGrid SMTP configuration
-    transporter = nodemailer.createTransporter({
+    transporter = nodemailer.createTransport({
       host: 'smtp.sendgrid.net',
       port: 587,
       auth: {

@@ -5,7 +5,7 @@ const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || 'default-secret-change-in-production'
 )
 
-export interface JWTPayload {
+export interface JWTPayload extends Record<string, any> {
   userId: string
   email: string
   role: string
